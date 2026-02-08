@@ -1,6 +1,5 @@
 import yfinance as yf
 import pandas as pd
-import pandas_ta as ta
 import requests
 import os
 import json
@@ -28,6 +27,29 @@ else:
     print("提示：未偵測到環境變數 STOCK_LIST，使用預設測試名單。")
 
 # ================= 1. 抓取數據與技術分析 =================
+def calc_sma(series, window):
+    return series.rolling(window=window).mean()
+
+def calc_rsi(series, period=14):
+    delta = series.diff()
+    gain = delta.clip(lower=0)
+    loss = -delta.clip(upper=0)
+
+    avg_gain = gain.rolling(period).mean()
+    avg_loss = loss.rolling(period).mean()
+
+    rs = avg_gain / avg_loss
+    rsi = 100 - (100 / (1 + rs))
+    return rsi
+
+def calc_macd(series, fast=12, slow=26, signal=9):
+    ema_fast = series.ewm(span=fast, adjust=False).mean()
+    ema_slow = series.ewm(span=slow, adjust=False).mean()
+    macd = ema_fast - ema_slow
+    signal_line = macd.ewm(span=signal, adjust=False).mean()
+    hist = macd - signal_line
+    return macd, signal_line, hist
+
 def fetch_refined_data(stocks):
     filtered_list = []
     print(f"開始分析 {len(stocks)} 支標的...")
@@ -39,21 +61,21 @@ def fetch_refined_data(stocks):
             if len(df) < 35: continue
 
             # 計算指標
-            df['MA5'] = ta.sma(df['Close'], length=5)
-            df['MA20'] = ta.sma(df['Close'], length=20)
-            df['RSI'] = ta.rsi(df['Close'], length=14)
-            macd = ta.macd(df['Close'])
-            df = pd.concat([df, macd], axis=1)
+            df['MA5'] = calc_sma(df['Close'], 5)
+            df['MA20'] = calc_sma(df['Close'], 20)
+            df['RSI'] = calc_rsi(df['Close'], 14)
+
+            df['MACD'], df['MACD_SIGNAL'], df['MACD_HIST'] = calc_macd(df['Close'])
 
             # 取得最新一筆數據
             curr = df.iloc[-1]
-            last_close = float(curr['Close'])
-            rsi_val = float(curr['RSI'])
+            last_close = curr['Close'].item()
+            rsi_val = curr['RSI'].item()
             
             # --- 自動過濾機制 ---
             # 條件：股價站上 5MA 且 RSI 介於 40~70 之間（避開超賣與過熱區）
             if last_close > curr['MA5'] and 40 < rsi_val < 75:
-                status = "趨勢轉強" if curr['MACD_12_26_9'] > curr['MACDs_12_26_9'] else "區間整理"
+                status = "趨勢轉強" if curr['MACD'] > curr['MACD_SIGNAL'] else "區間整理"
                 summary = {
                     "symbol": symbol,
                     "price": round(last_close, 2),
