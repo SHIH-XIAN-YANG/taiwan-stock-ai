@@ -7,7 +7,7 @@ import json
 
 # ================= 配置設定 =================
 # 從 GitHub Secrets 讀取設定
-OPENAI_API_KEY = os.getenv("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")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 # 將字串轉回清單
 STOCK_LIST = os.getenv("STOCK_LIST").split(",")
 
@@ -58,8 +58,8 @@ def get_ai_recommendation(data):
 
 # ================= 3. 發送 Line 通知 =================
 def send_line_messaging_api(text_message):
-    LINE_ACCESS_TOKEN = os.getenv("3fa24f9edf893073a1346740606b5e99")
-    LINE_USER_ID = os.getenv("U1fbdb807ea8c1dcfbd1c06546d7676c2")
+    LINE_ACCESS_TOKEN = os.getenv("LINE_ACCESS_TOKEN")
+    LINE_USER_ID = os.getenv("LINE_USER_ID")
     
     url = "https://api.line.me/v2/bot/message/push"
     headers = {

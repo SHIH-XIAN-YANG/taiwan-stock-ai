@@ -27,6 +27,7 @@ jobs:
     - name: 執行選股腳本
       env:
         OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-        LINE_NOTIFY_TOKEN: ${{ secrets.LINE_NOTIFY_TOKEN }}
+        LINE_ACCESS_TOKEN: ${{ secrets.LINE_ACCESS_TOKEN }}
+        LINE_USER_ID: ${{ secrets.LINE_USER_ID }}
         STOCK_LIST: ${{ secrets.STOCK_LIST }}
       run: python main.py
