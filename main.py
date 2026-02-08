@@ -141,15 +141,46 @@ def send_flex_message(ai_content):
     }
     
     requests.post(url, headers=headers, data=json.dumps(payload))
-
+# ================= 1.5 抓取大盤數據與總結 =================
+def get_market_summary():
+    try:
+        # 抓取加權指數
+        idx = yf.download("^TWII", period="5d", interval="1d", progress=False)
+        curr_idx = idx.iloc[-1]
+        prev_idx = idx.iloc[-2]
+        
+        change = curr_idx['Close'].item() - prev_idx['Close'].item()
+        percent = (change / prev_idx['Close'].item()) * 100
+        
+        market_info = (
+            f"今日加權指數收盤: {curr_idx['Close'].item():.2f}\n"
+            f"漲跌點數: {change:+.2f} ({percent:+.2f}%)\n"
+            f"成交量估計: {curr_idx['Volume'].item():.0f}"
+        )
+        
+        # 讓 AI 生成總結
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "你是一位專業股市評論員，請敘述今日大盤走勢與市場情緒。"},
+                {"role": "user", "content": market_info}
+            ]
+        )
+        return f"📊 【大盤總結】\n{market_info}\n\n💡 AI 評論：{response.choices[0].message.content}"
+    except Exception as e:
+        return "⚠️ 無法取得大盤即時總結"
 # ================= 主程式執行 =================
 if __name__ == "__main__":
-    # 1. 抓取並自動過濾（只有好的標的才會進入下一關）
+    # 1. 抓取大盤總結
+    market_overview = get_market_summary()
+
+    # 2. 抓取並自動過濾（只有好的標的才會進入下一關）
     refined_data = fetch_refined_data(STOCK_LIST)
     
-    # 2. AI 分析
+    # 3. AI 分析
     analysis_result = get_ai_recommendation(refined_data)
     
-    # 3. 發送漂亮卡片
-    send_flex_message(analysis_result)
+    # 4. 整合內容並發送
+    full_content = f"{market_overview}\n\n---\n\n{analysis_result}"
+    send_flex_message(full_content)
     print("✅ 進階分析已完成並發送！")
