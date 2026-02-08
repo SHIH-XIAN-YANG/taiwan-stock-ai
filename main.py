@@ -98,10 +98,12 @@ def get_ai_recommendation(data_list):
     # 格式化給 AI 的字串
     data_str = "\n".join([f"{d['symbol']}: 價{d['price']}, RSI{d['rsi']}, {d['status']}" for d in data_list])
     
-    prompt = f"你是台股專家，請從以下篩選出的標的中，挑選 10 支最推薦的並提供簡短分析：\n{data_str}"
+    prompt = f"你是一位專業台股分析師。以下是從 60 支績優股中，透過技術指標(5MA, RSI, MACD)\
+        篩選出的潛力標的。請從中精選 5-10 支最具爆發力的股票，\
+        並針對它們的技術線型給出具體的「進場點」與「停損建議」。\n數據內容：{data_str}"
     
     response = client.chat.completions.create(
-        model="gpt-4o-mini", # 切換模型省錢
+        model="gpt-4o", # 切換模型省錢
         messages=[{"role": "user", "content": prompt}]
     )
     return response.choices[0].message.content
