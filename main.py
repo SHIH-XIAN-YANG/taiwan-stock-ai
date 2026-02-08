@@ -7,9 +7,9 @@ from openai import OpenAI
 
 # ================= 配置設定 =================
 # 從 GitHub Secrets 讀取設定
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY") or "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"
-LINE_ACCESS_TOKEN = os.getenv("LINE_ACCESS_TOKEN") or "HyqYqASnzFr550Y8pRjv0OF4cx5jO9rRE4w03fU3ubDsQnZRLzc8bXqj5AcBSA9OVxyLP32t1uxohW+wi0aJJa1nJpa8iiDwnUjJ+wx0g1Axnm8K3tTiydEJWj+pZN65VVVFKJi3c5uba+BdvJCXnwdB04t89/1O/w1cDnyilFU="
-LINE_USER_ID = os.getenv("LINE_USER_ID") or "Ua4a4bf08f13b92898a8bfdf201d104fc"
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+LINE_ACCESS_TOKEN = os.getenv("LINE_ACCESS_TOKEN")
+LINE_USER_ID = os.getenv("LINE_USER_ID")
 
 # 檢查 OpenAI Key 是否存在，避免初始化失敗
 if not OPENAI_API_KEY or "在這裡貼上" in OPENAI_API_KEY:
