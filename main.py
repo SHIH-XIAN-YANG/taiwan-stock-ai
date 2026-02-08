@@ -40,13 +40,12 @@ def fetch_market_data(stocks):
                 continue
             
             # 確保取到的是數值而不是 Series (加上 .item() 或取最後一個值)
-            last_close = float(df['Close'].iloc[-1])
-            ma20 = float(df['Close'].rolling(window=20).mean().iloc[-1])
-            ma5 = float(df['Close'].rolling(window=5).mean().iloc[-1])
-            
-            # 修正成交量計算
-            current_vol = float(df['Volume'].iloc[-1])
-            avg_vol = float(df['Volume'].rolling(window=5).mean().iloc[-1])
+            last_close = df['Close'].iloc[-1].item()
+            ma20 = df['Close'].rolling(window=20).mean().iloc[-1].item()
+            ma5 = df['Close'].rolling(window=5).mean().iloc[-1].item()
+
+            current_vol = df['Volume'].iloc[-1].item()
+            avg_vol = df['Volume'].rolling(window=5).mean().iloc[-1].item()
             volume_ratio = current_vol / avg_vol if avg_vol != 0 else 0
             
             status = "多頭排列" if last_close > ma5 > ma20 else "整理中"
