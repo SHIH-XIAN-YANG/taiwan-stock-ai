@@ -56,41 +56,46 @@ def fetch_refined_data(stocks):
 
     for symbol in stocks:
         try:
-            # 抓取稍長的時間以計算指標 (需要至少 35 天數據計算 MACD)
+            # 1. 抓取資料並解決 MultiIndex 問題
             df = yf.download(symbol, period="2mo", interval="1d", progress=False, auto_adjust=True)
+            
+            # 強制扁平化欄位，確保 df['Close'] 只有一列
+            if isinstance(df.columns, pd.MultiIndex):
+                df.columns = df.columns.get_level_values(0)
+                
             if len(df) < 35: continue
 
-            # 計算指標
+            # 2. 計算指標
             df['MA5'] = calc_sma(df['Close'], 5)
             df['MA20'] = calc_sma(df['Close'], 20)
             df['RSI'] = calc_rsi(df['Close'], 14)
+            df['MACD'], df['MACD_SIGNAL'], _ = calc_macd(df['Close'])
 
-            df['MACD'], df['MACD_SIGNAL'], df['MACD_HIST'] = calc_macd(df['Close'])
-
-            # 取得最新一筆數據
+            # 3. 確保取出的數值是 Scalar (單一數值) 並轉為 float
             curr = df.iloc[-1]
-            last_close = curr['Close'].item()
-            rsi_val = curr['RSI'].item()
+            last_close = float(curr['Close'])
+            ma5_val = float(curr['MA5'])
+            rsi_val = float(curr['RSI'])
+            macd_val = float(curr['MACD'])
+            signal_val = float(curr['MACD_SIGNAL'])
             
-            # --- 自動過濾機制 ---
-            # 條件：股價站上 5MA 且 RSI 介於 40~70 之間（避開超賣與過熱區）
-            if last_close > curr['MA5'] and 40 < rsi_val < 75:
-                status = "趨勢轉強" if curr['MACD'] > curr['MACD_SIGNAL'] else "區間整理"
+            # --- 修正後的過濾條件判斷 ---
+            if last_close > ma5_val and 40 < rsi_val < 75:
+                status = "趨勢轉強" if macd_val > signal_val else "區間整理"
                 summary = {
                     "symbol": symbol,
                     "price": round(last_close, 2),
                     "rsi": round(rsi_val, 1),
                     "status": status,
-                    "ma5": round(curr['MA5'], 2)
+                    "ma5": round(ma5_val, 2)
                 }
                 filtered_list.append(summary)
                 print(f"✅ {symbol} 符合過濾條件")
                 
         except Exception as e:
-            print(f"分析 {symbol} 失敗: {e}")
+            print(f"分析 {symbol} 失敗: {str(e)}")
             
     return filtered_list
-
 # ================= 2. AI 進行選股分析 =================
 def get_ai_recommendation(data_list):
     if not data_list: return "今日無符合條件之標的"
@@ -144,30 +149,39 @@ def send_flex_message(ai_content):
 # ================= 1.5 抓取大盤數據與總結 =================
 def get_market_summary():
     try:
-        # 抓取加權指數
         idx = yf.download("^TWII", period="5d", interval="1d", progress=False)
+        
+        # 同樣處理大盤的 MultiIndex
+        if isinstance(idx.columns, pd.MultiIndex):
+            idx.columns = idx.columns.get_level_values(0)
+            
         curr_idx = idx.iloc[-1]
         prev_idx = idx.iloc[-2]
         
-        change = curr_idx['Close'].item() - prev_idx['Close'].item()
-        percent = (change / prev_idx['Close'].item()) * 100
+        # 確保取值使用 float() 避免 Series 錯誤
+        curr_close = float(curr_idx['Close'])
+        prev_close = float(prev_idx['Close'])
+        curr_vol = float(curr_idx['Volume'])
+        
+        change = curr_close - prev_close
+        percent = (change / prev_close) * 100
         
         market_info = (
-            f"今日加權指數收盤: {curr_idx['Close'].item():.2f}\n"
+            f"今日加權指數收盤: {curr_close:.2f}\n"
             f"漲跌點數: {change:+.2f} ({percent:+.2f}%)\n"
-            f"成交量估計: {curr_idx['Volume'].item():.0f}"
+            f"成交量估計: {curr_vol:.0f}"
         )
         
-        # 讓 AI 生成總結
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
-                {"role": "system", "content": "你是一位專業股市評論員，請敘述今日大盤走勢與市場情緒。"},
+                {"role": "system", "content": "你是一位專業股市評論員，請用 50 字內簡述今日大盤走勢與市場情緒。"},
                 {"role": "user", "content": market_info}
             ]
         )
         return f"📊 【大盤總結】\n{market_info}\n\n💡 AI 評論：{response.choices[0].message.content}"
     except Exception as e:
+        print(f"大盤總結錯誤: {e}")
         return "⚠️ 無法取得大盤即時總結"
 # ================= 主程式執行 =================
 if __name__ == "__main__":
