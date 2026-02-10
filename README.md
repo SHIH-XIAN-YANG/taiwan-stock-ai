@@ -49,17 +49,6 @@ cd taiwan-stock-ai
 pip install -r requirements.txt
 ```
 
-### 3. 設定 API 金鑰
-
-為了安全起見，請在專案根目錄建立一個名為 token 的檔案（沒有副檔名），內容如下：
-
-```bash
-OPENAI_API_KEY=sk-proj-xxxxxxxxxxxxxxxxxxxx
-LINE_ACCESS_TOKEN=你的長字串ChannelAccessToken
-LINE_USER_ID=你的U開頭UserID
-STOCK_LIST=2330.TW,2317.TW,2454.TW
-```
-
 ## ⚙️ GitHub Actions 部署設定 (Deployment)
 
 本專案設計核心為雲端自動執行，你需要將 API 金鑰設定在 GitHub Repository 的 **Secrets** 中，以確保安全性。
