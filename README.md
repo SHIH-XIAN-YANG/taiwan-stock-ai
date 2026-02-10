@@ -47,6 +47,7 @@ cd taiwan-stock-ai
 
 ```bash
 pip install -r requirements.txt
+```
 
 ### 3. 設定 API 金鑰
 
@@ -57,6 +58,7 @@ OPENAI_API_KEY=sk-proj-xxxxxxxxxxxxxxxxxxxx
 LINE_ACCESS_TOKEN=你的長字串ChannelAccessToken
 LINE_USER_ID=你的U開頭UserID
 STOCK_LIST=2330.TW,2317.TW,2454.TW
+```
 
 ## ⚙️ GitHub Actions 部署設定 (Deployment)
 
@@ -94,6 +96,7 @@ taiwan-stock-ai/
 ├── requirements.txt          # Python 套件清單 (yfinance, pandas-ta, openai...)
 ├── .gitignore                # Git 忽略清單 (保護 token 檔)
 └── README.md                 # 專案說明文件
+```
 
 ## 貢獻 (Contributing)
 歡迎提交 Issue 或 Pull Request 來改進這個專案！ 如果您覺得這個專案對您有幫助，請不吝給予一顆星星 ⭐！
