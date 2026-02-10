@@ -40,7 +40,7 @@
 ```bash
 git clone [https://github.com/你的帳號/taiwan-stock-ai.git](https://github.com/你的帳號/taiwan-stock-ai.git)
 cd taiwan-stock-ai
-
+```
 ### 2. 安裝依賴套件
 
 建議使用 Python 3.10 或以上版本。
