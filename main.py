@@ -160,7 +160,7 @@ def get_ai_analysis(data_list, mode):
     return response.choices[0].message.content
 
 # ================= 3. 發送 Line 通知 =================
-def send_line_flex(title, content):
+def send_line_flex_to_me(title, content):
     url = "https://api.line.me/v2/bot/message/push"
     headers = {
         "Content-Type": "application/json",
@@ -190,7 +190,43 @@ def send_line_flex(title, content):
     }
     requests.post(url, headers=headers, data=json.dumps(payload))
 
-
+def send_line_flex_broadcast(title, content):
+    # ⚠️ 修改 1: 網址改成 broadcast (廣播)
+    url = "https://api.line.me/v2/bot/message/broadcast"
+    
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {LINE_ACCESS_TOKEN}"
+    }
+    
+    theme_color = "#0055AA" if "美股" in title else "#E63946"
+    
+    flex_contents = {
+        "type": "bubble",
+        "header": {
+            "type": "box", "layout": "vertical", "contents": [
+                {"type": "text", "text": title, "weight": "bold", "size": "lg", "color": "#ffffff"}
+            ], "backgroundColor": theme_color
+        },
+        "body": {
+            "type": "box", "layout": "vertical", "contents": [
+                {"type": "text", "text": content, "wrap": True, "size": "sm"}
+            ]
+        }
+    }
+    
+    # ⚠️ 修改 2: 移除 "to" 欄位 (廣播不需要指定對象，它會發給所有人)
+    payload = {
+        "messages": [{"type": "flex", "altText": title, "contents": flex_contents}]
+    }
+    
+    response = requests.post(url, headers=headers, data=json.dumps(payload))
+    
+    # 加入除錯訊息，確認發送狀態
+    if response.status_code == 200:
+        print("✅ 廣播訊息發送成功！")
+    else:
+        print(f"❌ 發送失敗: {response.status_code} - {response.text}")
 
 # ================= 1.5 抓取大盤數據與總結 =================
 def get_market_summary():
@@ -249,5 +285,5 @@ if __name__ == "__main__":
     
     # 4. 整合內容並發送
     full_content = f"{market_overview}\n\n---\n\n{analysis_result}"
-    send_line_flex(title, full_content)
+    send_line_flex_broadcast(title, full_content)
     print("✅ 進階分析已完成並發送！")
