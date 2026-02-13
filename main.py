@@ -4,6 +4,7 @@ import requests
 import os
 import json
 from openai import OpenAI
+import datetime
 
 # ================= 配置設定 =================
 # 從 GitHub Secrets 讀取設定
@@ -18,13 +19,42 @@ if not OPENAI_API_KEY or "在這裡貼上" in OPENAI_API_KEY:
 else:
     client = OpenAI(api_key=OPENAI_API_KEY)
 
-# 股票清單讀取
-stock_str = os.getenv("STOCK_LIST")
-if stock_str:
-    STOCK_LIST = stock_str.split(",")
-else:
-    STOCK_LIST = ["2330.TW", "2317.TW", "2454.TW"]
-    print("提示：未偵測到環境變數 STOCK_LIST，使用預設測試名單。")
+# ================= 1. 智慧讀取清單 =================
+# 優先讀取台股清單
+tw_stock_env = os.getenv("STOCK_LIST")
+# 新增讀取美股清單
+us_stock_env = os.getenv("US_STOCK_LIST")
+
+def get_list_from_env(env_val, default_list):
+    if env_val:
+        return [s.strip() for s in env_val.split(",")]
+    return default_list
+
+# 本地測試時的預設值
+TW_LIST = get_list_from_env(tw_stock_env, ["2330.TW", "2317.TW"])
+US_LIST = get_list_from_env(us_stock_env, ["NVDA", "TSM", "SOXX"])
+
+# ================= 自動市場判定與清單讀取 =================
+def get_current_market_config():
+    # 取得台北時間 (UTC+8)
+    tz_taiwan = datetime.timezone(datetime.timedelta(hours=8))
+    now = datetime.datetime.now(tz_taiwan)
+    hour = now.hour
+
+    # 早上 5:00 ~ 9:00 定義為美股收盤分析
+    if 5 <= hour <= 9:
+        market_mode = "US"
+        env_list = os.getenv("US_STOCK_LIST")
+        default_list = ["SOXX", "NVDA", "TSM", "AAPL", "MSFT"]
+        title = "🇺🇸 美股收盤分析 (盤前指引)"
+    else:
+        market_mode = "TW"
+        env_list = os.getenv("STOCK_LIST")
+        default_list = ["2330.TW", "2317.TW", "2454.TW"]
+        title = "🇹🇼 台股收盤分析 (每日精選)"
+
+    stock_list = [s.strip() for s in env_list.split(",")] if env_list else default_list
+    return market_mode, stock_list, title
 
 # ================= 1. 抓取數據與技術分析 =================
 def calc_sma(series, window):
@@ -97,55 +127,63 @@ def fetch_refined_data(stocks):
             
     return filtered_list
 # ================= 2. AI 進行選股分析 =================
-def get_ai_recommendation(data_list):
-    if not data_list: return "今日無符合條件之標的"
+
+def get_ai_analysis(data_list, mode):
+    if not data_list: return "目前市場標的處於整理期，無符合強勢篩選條件之標的。"
     
-    # 格式化給 AI 的字串
-    data_str = "\n".join([f"{d['symbol']}: 價{d['price']}, RSI{d['rsi']}, {d['status']}" for d in data_list])
+    data_str = "\n".join([f"{d['symbol']}: 價{d['price']} ({d['change']}%), RSI:{d['rsi']}" for d in data_list])
     
-    prompt = f"你是一位專業台股分析師。以下是從 60 支績優股中，透過技術指標(5MA, RSI, MACD)\
-        篩選出的潛力標的。請從中精選 5-10 支最具爆發力的股票，\
-        並針對它們的技術線型給出具體的「進場點」與「停損建議」。\n數據內容：{data_str}"
-    
+    # 根據市場切換 Prompt
+    if mode == "US":
+        role_prompt = "你是一位資深美股宏觀分析師，擅長分析美股對台股的連動影響。"
+        user_prompt = f"請分析昨晚美股表現：\n{data_str}\n\n特別注意：\n1. 科技股氣氛與 AI 龍頭動向。\n2. TSM (台積電ADR) 表現對今日台股開盤的具體引導作用。\n3. 提供短線操作觀點。"
+    else:
+        role_prompt = "你是一位精準的台股量化選股專家。"
+        user_prompt = f"請根據以下台股篩選清單進行分析，透過技術指標(5MA, RSI, MACD)\
+        篩選出的潛力標的。：\n{data_str}\n\n挑選 3-10 支最值得關注的標的，給出支撐位、壓力位建議，並說明推薦理由。"
+
     response = client.chat.completions.create(
-        model="gpt-4o", # 切換模型省錢
-        messages=[{"role": "user", "content": prompt}]
+        model="gpt-4o-mini",
+        messages=[
+            {"role": "system", "content": role_prompt},
+            {"role": "user", "content": user_prompt}
+        ]
     )
     return response.choices[0].message.content
+
 # ================= 3. 發送 Line 通知 =================
-def send_flex_message(ai_content):
+def send_line_flex(title, content):
     url = "https://api.line.me/v2/bot/message/push"
     headers = {
         "Content-Type": "application/json",
         "Authorization": f"Bearer {LINE_ACCESS_TOKEN}"
     }
     
-    # Flex Message 結構
+    # 動態變更卡片顏色 (美股藍色/台股紅色)
+    theme_color = "#0055AA" if "美股" in title else "#E63946"
+    
     flex_contents = {
         "type": "bubble",
         "header": {
             "type": "box", "layout": "vertical", "contents": [
-                {"type": "text", "text": "📈 AI 選股日報", "weight": "bold", "size": "xl", "color": "#ffffff"}
-            ], "backgroundColor": "#0367D3"
+                {"type": "text", "text": title, "weight": "bold", "size": "lg", "color": "#ffffff"}
+            ], "backgroundColor": theme_color
         },
         "body": {
             "type": "box", "layout": "vertical", "contents": [
-                {"type": "text", "text": ai_content, "wrap": True, "size": "sm", "margin": "md"}
-            ]
-        },
-        "footer": {
-            "type": "box", "layout": "vertical", "contents": [
-                {"type": "button", "action": {"type": "uri", "label": "查看詳細行情", "uri": "https://tw.stock.yahoo.com/"}, "style": "primary", "color": "#0367D3"}
+                {"type": "text", "text": content, "wrap": True, "size": "sm"}
             ]
         }
     }
-
+    
     payload = {
         "to": LINE_USER_ID,
-        "messages": [{"type": "flex", "altText": "AI 選股日報", "contents": flex_contents}]
+        "messages": [{"type": "flex", "altText": title, "contents": flex_contents}]
     }
-    
     requests.post(url, headers=headers, data=json.dumps(payload))
+
+
+
 # ================= 1.5 抓取大盤數據與總結 =================
 def get_market_summary():
     try:
@@ -183,18 +221,25 @@ def get_market_summary():
     except Exception as e:
         print(f"大盤總結錯誤: {e}")
         return "⚠️ 無法取得大盤即時總結"
+
 # ================= 主程式執行 =================
 if __name__ == "__main__":
+    mode, stocks, title = get_current_market_config()
+    print(f"當前模式: {mode}, 準備分析 {len(stocks)} 支標的...")
+
+    print(f"✅ {title} 發送完成！")
+
+
     # 1. 抓取大盤總結
     market_overview = get_market_summary()
 
     # 2. 抓取並自動過濾（只有好的標的才會進入下一關）
-    refined_data = fetch_refined_data(STOCK_LIST)
+    refined_data = fetch_refined_data(stocks)
     
     # 3. AI 分析
-    analysis_result = get_ai_recommendation(refined_data)
+    analysis_result = get_ai_analysis(refined_data, mode)
     
     # 4. 整合內容並發送
     full_content = f"{market_overview}\n\n---\n\n{analysis_result}"
-    send_flex_message(full_content)
+    send_line_flex(title, full_content)
     print("✅ 進階分析已完成並發送！")
