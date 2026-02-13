@@ -86,10 +86,9 @@ def fetch_refined_data(stocks):
 
     for symbol in stocks:
         try:
-            # 1. 抓取資料並解決 MultiIndex 問題
+            # 1. 抓取資料
             df = yf.download(symbol, period="2mo", interval="1d", progress=False, auto_adjust=True)
             
-            # 強制扁平化欄位，確保 df['Close'] 只有一列
             if isinstance(df.columns, pd.MultiIndex):
                 df.columns = df.columns.get_level_values(0)
                 
@@ -101,20 +100,29 @@ def fetch_refined_data(stocks):
             df['RSI'] = calc_rsi(df['Close'], 14)
             df['MACD'], df['MACD_SIGNAL'], _ = calc_macd(df['Close'])
 
-            # 3. 確保取出的數值是 Scalar (單一數值) 並轉為 float
+            # 3. 取得數值 (Current & Previous)
             curr = df.iloc[-1]
+            prev = df.iloc[-2]  # Get previous day to calc change
+
             last_close = float(curr['Close'])
+            prev_close = float(prev['Close'])
+            
+            # --- Fix: Calculate Percentage Change ---
+            change_val = last_close - prev_close
+            change_pct = (change_val / prev_close) * 100
+
             ma5_val = float(curr['MA5'])
             rsi_val = float(curr['RSI'])
             macd_val = float(curr['MACD'])
             signal_val = float(curr['MACD_SIGNAL'])
             
-            # --- 修正後的過濾條件判斷 ---
+            # 4. 過濾條件
             if last_close > ma5_val and 40 < rsi_val < 75:
                 status = "趨勢轉強" if macd_val > signal_val else "區間整理"
                 summary = {
                     "symbol": symbol,
                     "price": round(last_close, 2),
+                    "change": round(change_pct, 2), # <--- ADD THIS LINE (Fixes KeyError)
                     "rsi": round(rsi_val, 1),
                     "status": status,
                     "ma5": round(ma5_val, 2)
